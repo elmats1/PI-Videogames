@@ -15,7 +15,7 @@ const getVideogames = async () => {
     try {
         const apiUrl = await axios.get(`https://api.rawg.io/api/games?key=${API_KEY}`, {
             params: {
-                number: 30
+                number: 30,
             },
         });
         const gameInfo = await apiUrl?.data.results.map(el => {
@@ -25,7 +25,7 @@ const getVideogames = async () => {
                 released: el.released,
                 apiImg: el.background_image,
                 rating: el.rating,
-                platform: el.platform,
+                platform: el.platforms.map(el => el),
                 description: el.description,
                 genre: el.genres.map(el => el)
             };
@@ -40,7 +40,7 @@ const getDb = async () => {
     return await Videogame.findAll({
         include: {
             model: Genre,
-            attributes: ['name'];
+            attributes: ['name'],
             through: {
                 attributes: [],
             }
@@ -68,18 +68,26 @@ router.get('/videogames', async (req, res) => {
 });
 
 router.get('/genres', async (req, res) => {
-    const apiGenre = await axios.get(`https://api.rawg.io/api/genres?key=${API_KEY}`);
-    const allGenres = apiGenre.data.map(el => el.genre);
-    const eachGenre = allGenres.map(el => {
-        for(let i = 0; i < el.length; i++) return el[i];
-    });
-    eachGenre.forEach(el => {
-        Genre.findOrCreate({
-            where: { name: el };
+    try {
+        const apiGenre = await axios.get(`https://api.rawg.io/api/genres?key=${API_KEY}`);
+        const allGenres = apiGenre.data.results;
+        const eachGenre = allGenres.map(el => {
+            return {
+                name: el.name
+            }
         });
-    });
-    const totalGenres = await Genre.findAll();
-    res.send(totalGenres);
+        eachGenre.forEach(el => {
+            Genre.findOrCreate({
+                where: { name: el.name }
+            });
+        });
+        res.send(eachGenre)
+
+        const totalGenres = await Genre.findAll();
+        if(totalGenres.length) return res.send(totalGenres);
+    } catch(error) {
+        return console.log(error);
+    } 
 });
 
 router.post('/videogame', async (req, res) => {
@@ -104,7 +112,7 @@ router.post('/videogame', async (req, res) => {
     });
 
     let genreDb = Genre.findAll({
-        where: { name : genre };
+        where: { name : genre }
     });
 
     createdGame.addGenres(genreDb);
